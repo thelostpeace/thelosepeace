@@ -6,7 +6,7 @@ wordembedding发展史上一个比较大的跨越就是[Distributional Semantics
 ### wordembedding in word2vec
 
 #### word2vec原理
-<center>![](https://github.com/thelostpeace/thelosepeace/blob/master/image/skipgram_cbow.png?raw=true)</center>
+<p align="center"><img src="https://github.com/thelostpeace/thelosepeace/blob/master/image/skipgram_cbow.png?raw=true"></p>
 
 **eg. I wanna train wordembedding with given training data.**
   
@@ -14,16 +14,17 @@ wordembedding发展史上一个比较大的跨越就是[Distributional Semantics
  - Skipgram：取窗口大小为2，则用`wordembedding`为输入，`wanna``train``with``given`为输出
   
 本文仅以Skipgram为例，CBOW和Skipgram差异并不大。Skipgram需要最大化给定输入词，预测给定窗口里词的概率，即
-<center><a href="https://www.codecogs.com/eqnedit.php?latex=\frac{1}{T}\sum_{t=1}^{T}\sum_{-c\leqslant&space;j\leq&space;c,&space;j\neq&space;0}\log&space;p(w_{t&plus;j}|w_{t})" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\frac{1}{T}\sum_{t=1}^{T}\sum_{-c\leqslant&space;j\leq&space;c,&space;j\neq&space;0}\log&space;p(w_{t&plus;j}|w_{t})" title="\frac{1}{T}\sum_{t=1}^{T}\sum_{-c\leqslant j\leq c, j\neq 0}\log p(w_{t+j}|w_{t})" /></a></center>   
+<p align="center"><a href="https://www.codecogs.com/eqnedit.php?latex=\frac{1}{T}\sum_{t=1}^{T}\sum_{-c\leqslant&space;j\leq&space;c,&space;j\neq&space;0}\log&space;p(w_{t&plus;j}|w_{t})" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\frac{1}{T}\sum_{t=1}^{T}\sum_{-c\leqslant&space;j\leq&space;c,&space;j\neq&space;0}\log&space;p(w_{t&plus;j}|w_{t})" title="\frac{1}{T}\sum_{t=1}^{T}\sum_{-c\leqslant j\leq c, j\neq 0}\log p(w_{t+j}|w_{t})" /></a></p>   
 
 传统会以简单的对输出做一个Softmax，即
-<center><a href="https://www.codecogs.com/eqnedit.php?latex=p(w_{O}|w_{I})&space;=&space;\frac{\exp&space;(v_{w_{O}}^{'}.^{T}v_{w_{I}})}{\sum_{w=1}^{W}\exp(v_{w}^{'}.^{T}v_{w_{I}})}" target="_blank"><img src="https://latex.codecogs.com/png.latex?p(w_{O}|w_{I})&space;=&space;\frac{\exp&space;(v_{w_{O}}^{'}.^{T}v_{w_{I}})}{\sum_{w=1}^{W}\exp(v_{w}^{'}.^{T}v_{w_{I}})}" title="p(w_{O}|w_{I}) = \frac{\exp (v_{w_{O}}^{'}.^{T}v_{w_{I}})}{\sum_{w=1}^{W}\exp(v_{w}^{'}.^{T}v_{w_{I}})}" /></a></center>  
+<p align="center"><a href="https://www.codecogs.com/eqnedit.php?latex=p(w_{O}|w_{I})&space;=&space;\frac{\exp&space;(v_{w_{O}}^{'}.^{T}v_{w_{I}})}{\sum_{w=1}^{W}\exp(v_{w}^{'}.^{T}v_{w_{I}})}" target="_blank"><img src="https://latex.codecogs.com/png.latex?p(w_{O}|w_{I})&space;=&space;\frac{\exp&space;(v_{w_{O}}^{'}.^{T}v_{w_{I}})}{\sum_{w=1}^{W}\exp(v_{w}^{'}.^{T}v_{w_{I}})}" title="p(w_{O}|w_{I}) = \frac{\exp (v_{w_{O}}^{'}.^{T}v_{w_{I}})}{\sum_{w=1}^{W}\exp(v_{w}^{'}.^{T}v_{w_{I}})}" /></a></p>  
 但是这样计算的时间复杂度会很高，即
-<center><a href="https://www.codecogs.com/eqnedit.php?latex=O(time)&space;=&space;V&space;\times&space;D&space;&plus;&space;D&space;\times&space;V" target="_blank"><img src="https://latex.codecogs.com/png.latex?O(time)&space;=&space;V&space;\times&space;D&space;&plus;&space;D&space;\times&space;V" title="O(time) = V \times D + D \times V" /></a></center>
+<p align="center"><a href="https://www.codecogs.com/eqnedit.php?latex=O(time)&space;=&space;V&space;\times&space;D&space;&plus;&space;D&space;\times&space;V" target="_blank"><img src="https://latex.codecogs.com/png.latex?O(time)&space;=&space;V&space;\times&space;D&space;&plus;&space;D&space;\times&space;V" title="O(time) = V \times D + D \times V" /></a></p>
 
 word2vec提出了**Hierarchical Softmax**的方式做计算，即对训练词表生成一棵Huffman树，即
-<center>![](https://github.com/thelostpeace/thelosepeace/blob/master/image/huffman_tree.png?raw=true)</center>
-<center>![](https://github.com/thelostpeace/thelosepeace/blob/master/image/hierachical_softmax.png?raw=true)</center>
+<p align="center"><img height=180 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/huffman_tree.png?raw=true"></p>
+
+<p align="center"><img width=450 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/hierachical_softmax.png?raw=true"></p>
   
   
 ```
@@ -35,9 +36,12 @@ arbitrary fixed child of n and let [x] be 1 if x is true and -1 otherwise.
 ```
 
 则时间复杂度变为：
-<center><a href="https://www.codecogs.com/eqnedit.php?latex=O(time)&space;=&space;C&space;\times&space;(D&space;&plus;&space;D&space;\times&space;\log&space;(V))" target="_blank"><img src="https://latex.codecogs.com/png.latex?O(time)&space;=&space;C&space;\times&space;(D&space;&plus;&space;D&space;\times&space;\log&space;(V))" title="O(time) = C \times (D + D \times \log (V))" /></a></center>
+<p align="center"><a href="https://www.codecogs.com/eqnedit.php?latex=O(time)&space;=&space;C&space;\times&space;(D&space;&plus;&space;D&space;\times&space;\log&space;(V))" target="_blank"><img src="https://latex.codecogs.com/png.latex?O(time)&space;=&space;C&space;\times&space;(D&space;&plus;&space;D&space;\times&space;\log&space;(V))" title="O(time) = C \times (D + D \times \log (V))" /></a></p>
 
 其中C为窗口大小，D为embedding的dimension，V为output dimension。
+
+Negtive Sampling: 
+<p align="center"><img width=450 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/negtive_sample.png?raw=true"></p>
 
 
 #### word2vec实现
