@@ -21,7 +21,7 @@ wordembedding发展史上一个比较大的跨越就是[Distributional Semantics
 但是这样计算的时间复杂度会很高，即
 <p align="center"><a href="https://www.codecogs.com/eqnedit.php?latex=O(time)&space;=&space;V&space;\times&space;D&space;&plus;&space;D&space;\times&space;V" target="_blank"><img src="https://latex.codecogs.com/png.latex?O(time)&space;=&space;V&space;\times&space;D&space;&plus;&space;D&space;\times&space;V" title="O(time) = V \times D + D \times V" /></a></p>
 
-word2vec提出了**Hierarchical Softmax**的方式做计算，即对训练词表生成一棵Huffman树，即
+word2vec默认使用**Hierarchical Softmax**的方式做计算，即对训练词表生成一棵Huffman树，即
 <p align="center"><img height=180 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/huffman_tree.png?raw=true"></p>
 
 <p align="center"><img width=450 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/hierachical_softmax.png?raw=true"></p>
@@ -43,9 +43,82 @@ arbitrary fixed child of n and let [x] be 1 if x is true and -1 otherwise.
 Negtive Sampling: 
 <p align="center"><img width=450 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/negtive_sample.png?raw=true"></p>
 
+Unigram Distribution:
+<p align="center"><img width=210 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/unigram_distribution.png?raw=true"></p>
+
+对于这个玩意我Google了一下，没有比较明确的搜索结果，所以写了一段代码做了一个简单的试验，随机K个字母，取样本P，对于字母A在K中的概率为Pk，在P中的概率为Pp，以Unigram Distribution，去指数0.1，0.75，0.80得到的概率为Pu0.1，Pu0.75，Pu0.8，Pu0.75相比其他值和Pp更接近于PK。我理解的是，对于wordembedding的语料来说，永远是真实全集的一个观测集，以Unigram Distribution表示要更好一些。代码如下：
+
+```
+int main(int argc, char **argv) {
+    unsigned long long next_random = (long long)1000;
+    vector<int> all;
+    vector<int> part;
+    int total = 10000000;
+    double f = 0.8;
+    for (int i = 0; i < total; ++i) {
+        next_random = next_random * (unsigned long long)25214903917 + 11;
+        all.push_back(next_random % 26 + int('A'));
+    }
+
+    int count = 0;
+    for (int i = 0; i < total; ++i) {
+        if (all[i] == int('A')) {
+            ++count;
+        }
+    }
+
+    cout << "real prop of A: " << double(count) / total << endl;
+
+    unsigned seed = 100;
+    shuffle(all.begin(), all.end(), std::default_random_engine(seed));
+    for (int i = 0; i < total / 2; ++i) {
+        part.push_back(all[i]);
+    }
+
+    map<int, int> cnt_map;
+    for (int i = 0; i < total / 2; ++i) {
+        if (cnt_map.find(part[i]) == cnt_map.end()) {
+            cnt_map[part[i]] = 0;
+        }
+        cnt_map[part[i]]++;
+    }
+
+    double sm = 0.;
+    for (auto &it : cnt_map) {
+        sm += pow(double(it.second), f);
+    }
+
+    cout << "part real prop of A: " << cnt_map[int('A')] / double(total / 2) << endl;
+    cout << "part noise prop of A: " << pow(double(cnt_map[int('A')]), f) / sm << endl;
+
+    return 0;
+}
+```
+
+SubSampling:
+<p align="center"><img width=200 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/subsampling.png?raw=true"></p>
+
+其实代码里实现是这样的，或许是为了实现上的方便吧。
+
+```
+         if (sample > 0) {
+           real ran = (sqrt(vocab[word].cn / (sample * train_words)) + 1) * (sample * train_words) / vocab[word].cn;
+           next_random = next_random * (unsigned long long)25214903917 + 11;
+           if (ran < (next_random & 0xFFFF) / (real)65536) continue;
+         }
+```
+
+<p align="center"><img height=300 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/subsampling_graph.png?raw=true"></p>
+
+subsampling的目的就是为了去除一些可能的无意义的高频词，例如`the``and``for`等等。
 
 #### word2vec实现
 1. 用简单的hash表存储词，一个hash vector，一个word vector，数据读取时会不断的调整hash表大小来节省内存空间，其一是hash表达到总量70%是去调词频为1的词，然后扩容，第二次扩容去调词频为2的，依次增加，后续会再做一次参数指定的最小词频的词过滤，会再次对hash表做调整。简而言之，稀有词会被从词表里去掉。往往对于某个具体的场景来说，稀有词往往会是一个keyword，这样就要求wordembedding训练的数据量非常大，减少稀有词数量，这样用作基础的embedding，也会更合适。fasttext通过另一种方式解决了这个问题。
+
+<p align="center"><img height=150 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/word_hash.png?raw=true"></p>
+
+其实最后计算的时候用的是word的hash值，其实并没有很明显的one-hot的vector表示，在计算上是没有必要的。
+
 2. 用Huffman树表示词，非常惊艳的一段代码
 
 ```
@@ -124,6 +197,107 @@ Negtive Sampling:
 O(time) = vocab_size/2 + vocab_size/4 + ... + vocab_size / n
         = vocab_size
 ```
+大致思想如下：
+<p align="center"><img height=300 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/huffman_create.png?raw=true"></p>
+
+由底向上一层层构建Huffman树，可以跟着代码走一走，很好理解。
+
+神经网络的参数存储，包括HS和NEG。
+
+```
+350 void InitNet() {
+351   long long a, b;
+352   unsigned long long next_random = 1;
+353   a = posix_memalign((void **)&syn0, 128, (long long)vocab_size * layer1_size * sizeof(real));
+354   if (syn0 == NULL) {printf("Memory allocation failed\n"); exit(1);}
+355   if (hs) {
+356     a = posix_memalign((void **)&syn1, 128, (long long)vocab_size * layer1_size * sizeof(real));
+357     if (syn1 == NULL) {printf("Memory allocation failed\n"); exit(1);}
+358     for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
+359      syn1[a * layer1_size + b] = 0;
+360   }
+361   if (negative>0) {
+362     a = posix_memalign((void **)&syn1neg, 128, (long long)vocab_size * layer1_size * sizeof(real));
+363     if (syn1neg == NULL) {printf("Memory allocation failed\n"); exit(1);}
+364     for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
+365      syn1neg[a * layer1_size + b] = 0;
+366   }
+367   for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++) {
+368     next_random = next_random * (unsigned long long)25214903917 + 11;
+369     syn0[a * layer1_size + b] = (((next_random & 0xFFFF) / (real)65536) - 0.5) / layer1_size;
+370   }
+371   CreateBinaryTree();
+372 }
+```
+
+预计算Sigmoid函数值表，作用就是加速计算。
+
+```
+708   expTable = (real *)malloc((EXP_TABLE_SIZE + 1) * sizeof(real));
+709   for (i = 0; i < EXP_TABLE_SIZE; i++) {
+710     expTable[i] = exp((i / (real)EXP_TABLE_SIZE * 2 - 1) * MAX_EXP); // Precompute the exp() table
+711     expTable[i] = expTable[i] / (expTable[i] + 1);                   // Precompute f(x) = x / (x + 1)
+712   }
+```
+
+对于单个词的参数更新，这一块我也没理太清晰，就不纠结了，感兴趣可以自己看源码。
+
+```
+496       for (a = b; a < window * 2 + 1 - b; a++) if (a != window) {
+497         c = sentence_position - window + a;
+498         if (c < 0) continue;
+499         if (c >= sentence_length) continue;
+500         last_word = sen[c];
+501         if (last_word == -1) continue;
+502         l1 = last_word * layer1_size;
+503         for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
+504         // HIERARCHICAL SOFTMAX
+505         if (hs) for (d = 0; d < vocab[word].codelen; d++) {
+506           f = 0;
+507           l2 = vocab[word].point[d] * layer1_size;
+508           // Propagate hidden -> output
+509           for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1[c + l2];
+510           if (f <= -MAX_EXP) continue;
+511           else if (f >= MAX_EXP) continue;
+512           else f = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
+513           // 'g' is the gradient multiplied by the learning rate
+514           g = (1 - vocab[word].code[d] - f) * alpha;
+515           // Propagate errors output -> hidden
+516           for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1[c + l2];
+517           // Learn weights hidden -> output
+518           for (c = 0; c < layer1_size; c++) syn1[c + l2] += g * syn0[c + l1];
+519         }
+520         // NEGATIVE SAMPLING
+521         if (negative > 0) for (d = 0; d < negative + 1; d++) {
+522           if (d == 0) {
+523             target = word;
+524             label = 1;
+525           } else {
+526             next_random = next_random * (unsigned long long)25214903917 + 11;
+527             target = table[(next_random >> 16) % table_size];
+528             if (target == 0) target = next_random % (vocab_size - 1) + 1;
+529             if (target == word) continue;
+530             label = 0;
+531           }
+532           l2 = target * layer1_size;
+533           f = 0;
+534           for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1neg[c + l2];
+535           if (f > MAX_EXP) g = (label - 1) * alpha;
+536           else if (f < -MAX_EXP) g = (label - 0) * alpha;
+537           else g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
+538           for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1neg[c + l2];
+539           for (c = 0; c < layer1_size; c++) syn1neg[c + l2] += g * syn0[c + l1];
+540         }
+541         // Learn weights input -> hidden
+542         for (c = 0; c < layer1_size; c++) syn0[c + l1] += neu1e[c];
+543       }
+```
+
+总的来说，word2vec的实现给人的感觉非常优雅，嗯，优雅。  
+
+ - [word2vec源码](https://github.com/tmikolov/word2vec)
+ - [word2vec Google项目](https://code.google.com/archive/p/word2vec/)
+
 #### relate reading
  - [Galina Olejnik, Word embeddings: exploration, explanation, and exploitation](https://towardsdatascience.com/word-embeddings-exploration-explanation-and-exploitation-with-code-in-python-5dac99d5d795)
  - [Galina Olejnik, Hierarchical softmax and negative sampling: short notes worth telling](https://towardsdatascience.com/hierarchical-softmax-and-negative-sampling-short-notes-worth-telling-2672010dbe08)
