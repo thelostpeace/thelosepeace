@@ -305,8 +305,70 @@ O(time) = vocab_size/2 + vocab_size/4 + ... + vocab_size / n
 
 
 ### wordembedding in fasttext
+只记录与word2vec有明显差异的地方。
 
+#### fasttext原理
 
+fasttext是一个词预测一个词，即演变成一个二分类问题。
+<p align="center"><img height=480 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/fasttext.png?raw=true"></p>
+
+Subword Model，其思想就是考虑到词的形态学，很多语言都会有prefix，stem，suffix，fasttext将character-ngram当作一个可调整的参数，不同语言的prefix，suffix的长度会有差异。这么做对于稀有词的表示是有益的，因为数据预处理过程中会去调一些稀有词，对于没有出现在语料里的词也是可以做表示的。其实对于象形文字中文来说，这个思想有更好的适用性，例如`魑魅魍魉``饕餮``圆圈`在表意上就很相近。  
+去character-ngram为3，对于`where`,表示为  
+`<wh` `whe` `her` `ere` `re>`  
+分值计算变为所有character-ngram的和：
+<p align="center"><img width=200 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/subwordmodel.png?raw=true"></p>  
+
+因为fasttext引入了Subword Model的概念，所以对于输入层计算次数变为了`(V+B)xD`，其中V为词量，B为subword的存储空间大小，D为wordembedding维数，所以fasttext相比word2vec，`word/thread/second`值会稍低一点。
+
+#### fasttext实现
+fasttext存储word，也是用的HashTable，大致结构与word2vec相同。
+
+其实对于`where`，默认`minn`是3，`maxnn`是6，对于其实际存储的character-ngram为  
+`<wh``<whe``<wher``<where``whe``wher``where``where>``her``here``here>``ere``ere>``re>`  
+这样能更好是适用于prefix，stem，suffix长度的变化，也能很好的保留词的原意。
+
+```
+172 void Dictionary::computeSubwords(
+173     const std::string& word,
+174     std::vector<int32_t>& ngrams,
+175     std::vector<std::string>* substrings) const {
+176   for (size_t i = 0; i < word.size(); i++) {
+177     std::string ngram;
+178     if ((word[i] & 0xC0) == 0x80) {
+179       continue;
+180     }
+181     for (size_t j = i, n = 1; j < word.size() && n <= args_->maxn; n++) {
+182       ngram.push_back(word[j++]);
+183       while (j < word.size() && (word[j] & 0xC0) == 0x80) {
+184         ngram.push_back(word[j++]);
+185       }
+186       if (n >= args_->minn && !(n == 1 && (i == 0 || j == word.size()))) {
+187         int32_t h = hash(ngram) % args_->bucket;
+188         pushHash(ngrams, h);
+189         if (substrings) {
+190           substrings->push_back(ngram);
+191         }
+192       }
+193     }
+194   }
+195 }
+```
+
+对于word2vec，Skipgram采用的是随机窗口位置，即input word可以在窗口内的固定位置，fasttext输入词总是在中心位置，个人更喜欢word2vec的处理方式。
+
+训练过程也都大同小异，不过，fasttext的代码更像是一个ML的简易框架，word2vec由于是c写的，很难扩展，也很难维护。
+
+#### text classification in fasttext
+这个看了源码和论文就顺带记录吧。
+
+fasttext linear model:
+<p align="center"><img height=300 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/fasttext_linear_model.png?raw=true"></p>
+<p align="center"><img height=200 src="https://github.com/thelostpeace/thelosepeace/blob/master/image/linear_model_loss.png?raw=true"></p>
+
+代码和CBOW实现差不多，只不过output变成了`__label__`，对于实际应用的话loss采用`OneVsAll`比较好，对于多label而言，可能每一个label的置信度都很低，这样可以不出结果，而且后处理策略也比较好做控制。对于每个label数据量不够不均衡的情况，也可以用这个思想去做样本均衡。
+
+### TreeHole
+期望以后能看更多的论文，做更多的实现，不限于工作相关领域，能把其他领域所了解的有趣的东西，值得记录下来的东西，抽时间记录在这里。
 
 ### references
 1. [fasttext site](https://fasttext.cc/)
@@ -314,3 +376,4 @@ O(time) = vocab_size/2 + vocab_size/4 + ... + vocab_size / n
 3. [Tomas Mikolov, Kai Chen, Greg Corrado, Jeffrey Dean, Efficient Estimation of Word Representations in Vector Space](https://arxiv.org/pdf/1301.3781)
 4. [Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg Corrado, Jeffrey Dean, Distributed Representations of Words and Phrases and their Compositionality](https://arxiv.org/abs/1310.4546)
 5. [Tomas Mikolov, Wen-tau Yih, Geoffrey Zweig, Linguistic Regularities in Continuous Space Word Representations](https://www.aclweb.org/anthology/N13-1090/)
+6. [Armand Joulin, Edouard Grave, Piotr Bojanowski, Tomas Mikolov, Bag-of-Tricks-for-Efficient-Text-Classification](https://arxiv.org/abs/1607.01759v3)
